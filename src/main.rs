@@ -36,6 +36,7 @@ fn main() {
         let mut video_ctx: video_renderer::VideoContext = video_renderer::VideoContext {
             video_width: 0,
             video_height: 0,
+            time_base: ffmpeg_sys_next::AVRational { num: 0, den: 0 }, 
             sws_scale_ctx: std::ptr::null_mut(),
             format_context: std::ptr::null_mut(),
             video_codec_parameters: std::ptr::null_mut(),
@@ -46,23 +47,19 @@ fn main() {
             packet: std::ptr::null_mut()
         };
 
-        video_renderer::load_video(&mut video_ctx, "res/Top5polishperson.mp4");
+        video_renderer::load_video(&mut video_ctx, "res/FatCat.mp4");
 
         (shader_program, vao, vbo, ebo, texture, video_ctx)
     };
 
     let uniform_name = std::ffi::CString::new("projection").unwrap();
     let mut data: Vec<u8> = Vec::new();
-
+    
     while !window.should_close() {
         handle_window_event(&mut width, &mut height, &mut window, &events);     
         unsafe {
             gl::ClearColor(0.1, 0.1, 0.1, 0.1);
             gl::Clear(gl::COLOR_BUFFER_BIT);
-
-            video_renderer::read_video_frame(&mut video_ctx, &mut data);
-            gl_renderer::create_texture(texture, video_ctx.video_width, video_ctx.video_height, gl::RGBA, gl::UNSIGNED_BYTE, gl::RGB as i32, data.as_ptr() as *const std::ffi::c_void);
-
             gl::UseProgram(shader_program);
             gl::BindVertexArray(vao);
 
@@ -71,6 +68,30 @@ fn main() {
             model = model * cgmath::Matrix4::from_translation(cgmath::vec3(0.5 * (width as f32), 0.5 * (height as f32), 0.0));
             model = model * cgmath::Matrix4::from_nonuniform_scale(1.0 * width as f32, height as f32 , 1.0);
             projection_matrix = projection_matrix * model;
+
+            let mut pts: i64 = 0;
+            video_renderer::read_video_frame(&mut video_ctx, &mut data, &mut pts);
+
+            static mut FIRST_FRAME: bool = true;
+            if FIRST_FRAME {
+                glfw.set_time(0.0);
+                gl_renderer::create_texture(texture, video_ctx.video_width, video_ctx.video_height, gl::RGBA, gl::UNSIGNED_BYTE, gl::RGB as i32, data.as_ptr() as *const std::ffi::c_void);
+                FIRST_FRAME = false;
+            }
+
+            let pt_in_sec = pts as f64 * video_ctx.time_base.num as f64 / video_ctx.time_base.den as f64;
+
+            if f64::ceil((*video_ctx.format_context).duration as f64 / 1000000.0) == f64::ceil(pt_in_sec)
+            {
+                break;
+            }
+
+            // wait
+            while pt_in_sec > glfw.get_time()
+            {
+            }
+
+            gl::TexSubImage2D(gl::TEXTURE_2D, 0, 0, 0, video_ctx.video_width, video_ctx.video_height, gl::RGBA, gl::UNSIGNED_BYTE, data.as_ptr() as *const std::ffi::c_void);
 
             let vertex_proyection_location = gl::GetUniformLocation(shader_program, uniform_name.as_ptr());
             gl::UniformMatrix4fv(vertex_proyection_location, 1, gl::FALSE, projection_matrix.as_ptr());

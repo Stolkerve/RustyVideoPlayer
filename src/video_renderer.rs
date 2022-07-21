@@ -3,6 +3,7 @@
 pub struct VideoContext {
     pub video_width: i32, pub video_height: i32,
 
+    pub time_base: ffmpeg_sys_next::AVRational,
     pub sws_scale_ctx: *mut ffmpeg_sys_next::SwsContext,
     pub format_context: *mut ffmpeg_sys_next::AVFormatContext,
     pub video_codec_parameters: *mut ffmpeg_sys_next::AVCodecParameters,
@@ -38,6 +39,7 @@ pub unsafe fn load_video(video_ctx: &mut VideoContext, video_path: &str) {
             video_stream_index = i as i32;
             video_codec_parameters = local_codec_parameters;
             video_codec = local_codec;
+            (*video_ctx).time_base = (*(*(*format_context).streams).offset(i as isize)).time_base;
             (*video_ctx).video_width = (*video_codec_parameters).width;
             (*video_ctx).video_height = (*video_codec_parameters).height;
 
@@ -77,7 +79,7 @@ pub unsafe fn load_video(video_ctx: &mut VideoContext, video_path: &str) {
     (*video_ctx).packet = packet;
 }
 
-pub unsafe fn read_video_frame(video_ctx: &mut VideoContext, data: &mut Vec<u8>) {
+pub unsafe fn read_video_frame(video_ctx: &mut VideoContext, data: &mut Vec<u8>, pts: &mut i64) {
     let format_context = video_ctx.format_context;
     let codec_context = video_ctx.codec_context;
     let video_stream_index = video_ctx.video_stream_index;
@@ -109,26 +111,29 @@ pub unsafe fn read_video_frame(video_ctx: &mut VideoContext, data: &mut Vec<u8>)
         ffmpeg_sys_next::av_packet_unref(packet);
         break;
     }
+    *pts = (*frame).pts;
 
     data.reserve_exact(((*frame).width * (*frame).height * 4) as usize);
 
-    let sws_scale_ctx = ffmpeg_sys_next::sws_getContext(
-        (*frame).width,
-        (*frame).height,
-        (*codec_context).pix_fmt,
-        (*frame).width,
-        (*frame).height,
-        ffmpeg_sys_next::AVPixelFormat::AV_PIX_FMT_RGB0,
-        ffmpeg_sys_next::SWS_BILINEAR,
-        std::ptr::null_mut(), std::ptr::null_mut(), std::ptr::null_mut()
-    );
+    if (*video_ctx).sws_scale_ctx.is_null() {
+        (*video_ctx).sws_scale_ctx = ffmpeg_sys_next::sws_getContext(
+            (*frame).width,
+            (*frame).height,
+            (*codec_context).pix_fmt,
+            (*frame).width,
+            (*frame).height,
+            ffmpeg_sys_next::AVPixelFormat::AV_PIX_FMT_RGB0,
+            ffmpeg_sys_next::SWS_BILINEAR,
+            std::ptr::null_mut(), std::ptr::null_mut(), std::ptr::null_mut()
+        );
+    }
 
-    assert!(!sws_scale_ctx.is_null(), "Couldn't initialize sw scaler");
+    assert!(!(*video_ctx).sws_scale_ctx.is_null(), "Couldn't initialize sw scaler");
 
     let dest = [data.as_mut_ptr(), std::ptr::null_mut(), std::ptr::null_mut(), std::ptr::null_mut()];
     let dest_linesize = [(*frame).width * 4, 0, 0, 0]; 
     ffmpeg_sys_next::sws_scale(
-        sws_scale_ctx,
+        (*video_ctx).sws_scale_ctx,
         (*frame).data.as_ptr() as *const *const u8,
         (*frame).linesize.as_ptr(),
         0,
@@ -136,8 +141,6 @@ pub unsafe fn read_video_frame(video_ctx: &mut VideoContext, data: &mut Vec<u8>)
         dest.as_ptr(),
         dest_linesize.as_ptr()
     );
-
-    (*video_ctx).sws_scale_ctx = sws_scale_ctx;
 }
 
 pub unsafe fn free_video_data(video_ctx: &mut VideoContext) {
