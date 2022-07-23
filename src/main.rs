@@ -34,8 +34,8 @@ fn main() {
         let texture = gl_renderer::generate_texture();
        
         let mut video_ctx: video_renderer::VideoContext = video_renderer::VideoContext {
-            video_width: 0,
-            video_height: 0,
+            width: 0,
+            height: 0,
             time_base: ffmpeg_sys_next::AVRational { num: 0, den: 0 }, 
             sws_scale_ctx: std::ptr::null_mut(),
             format_context: std::ptr::null_mut(),
@@ -75,7 +75,7 @@ fn main() {
             static mut FIRST_FRAME: bool = true;
             if FIRST_FRAME {
                 glfw.set_time(0.0);
-                gl_renderer::create_texture(texture, video_ctx.video_width, video_ctx.video_height, gl::RGBA, gl::UNSIGNED_BYTE, gl::RGB as i32, data.as_ptr() as *const std::ffi::c_void);
+                gl_renderer::create_texture(texture, video_ctx.width, video_ctx.height, gl::RGBA, gl::UNSIGNED_BYTE, gl::RGB as i32, data.as_ptr() as *const std::ffi::c_void);
                 FIRST_FRAME = false;
             }
 
@@ -91,7 +91,7 @@ fn main() {
             {
             }
 
-            gl::TexSubImage2D(gl::TEXTURE_2D, 0, 0, 0, video_ctx.video_width, video_ctx.video_height, gl::RGBA, gl::UNSIGNED_BYTE, data.as_ptr() as *const std::ffi::c_void);
+            gl::TexSubImage2D(gl::TEXTURE_2D, 0, 0, 0, video_ctx.width, video_ctx.height, gl::RGBA, gl::UNSIGNED_BYTE, data.as_ptr() as *const std::ffi::c_void);
 
             let vertex_proyection_location = gl::GetUniformLocation(shader_program, uniform_name.as_ptr());
             gl::UniformMatrix4fv(vertex_proyection_location, 1, gl::FALSE, projection_matrix.as_ptr());

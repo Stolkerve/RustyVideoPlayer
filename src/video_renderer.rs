@@ -1,7 +1,7 @@
 #![allow(unused_assignments)]
 
 pub struct VideoContext {
-    pub video_width: i32, pub video_height: i32,
+    pub width: i32, pub height: i32,
 
     pub time_base: ffmpeg_sys_next::AVRational,
     pub sws_scale_ctx: *mut ffmpeg_sys_next::SwsContext,
@@ -29,7 +29,8 @@ pub unsafe fn load_video(video_ctx: &mut VideoContext, video_path: &str) {
     let mut video_stream_index: i32 = -1;
 
     for i in 0..(*format_context).nb_streams {
-        let local_codec_parameters = (*(*(*format_context).streams).offset(i as isize)).codecpar;
+        let av_streams = (*format_context).streams.offset(i as isize);
+        let local_codec_parameters = (*(*av_streams)).codecpar;
         let local_codec = ffmpeg_sys_next::avcodec_find_decoder((*local_codec_parameters).codec_id); if local_codec.is_null() {
             println!("ERROR unsupported codec!");
             continue;
@@ -40,11 +41,11 @@ pub unsafe fn load_video(video_ctx: &mut VideoContext, video_path: &str) {
             video_codec_parameters = local_codec_parameters;
             video_codec = local_codec;
             (*video_ctx).time_base = (*(*(*format_context).streams).offset(i as isize)).time_base;
-            (*video_ctx).video_width = (*video_codec_parameters).width;
-            (*video_ctx).video_height = (*video_codec_parameters).height;
+            (*video_ctx).width = (*video_codec_parameters).width;
+            (*video_ctx).height = (*video_codec_parameters).height;
 
             println!("Video resolution: {} x {}", (*local_codec_parameters).width, (*local_codec_parameters).height);
-            break; 
+            // break;
         }
         else if (*local_codec_parameters).codec_type == ffmpeg_sys_next::AVMediaType::AVMEDIA_TYPE_AUDIO {
             println!("Audio channels: {}, sample rate: {}", (*local_codec_parameters).channels, (*local_codec_parameters).sample_rate); 

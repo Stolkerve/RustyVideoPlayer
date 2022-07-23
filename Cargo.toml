@@ -10,5 +10,6 @@ gl = "0.14.0"
 image = "0.24.2"
 cgmath = "0.18.0"
 ffmpeg-sys-next = "5.0.1"
-[dependencies.glfw]
-git = "https://github.com/bjz/glfw-rs.git"
+glfw = {git = "https://github.com/bjz/glfw-rs.git"}
+ao = {git = "https://gitlab.com/taricorp/rust-ao.git"}
+
